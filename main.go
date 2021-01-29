@@ -1,0 +1,472 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"os"
+
+	// helpers
+
+	bytefmt "code.cloudfoundry.org/bytefmt"
+	"github.com/hashicorp/go-tfe"
+	"github.com/hokaccha/go-prettyjson"
+	"github.com/kataras/tablewriter"
+	"github.com/urfave/cli/v2"
+)
+
+// Version is what is returned by the `-v` flag
+const Version = "0.1.0"
+
+// gitCommit is the gitcommit its built from
+var gitCommit = "development"
+
+func main() {
+	//nolint:dupl // CLI config is repetitive and flags as duplicates
+	app := &cli.App{
+		Name:    "tfe-state-info",
+		Usage:   "A simple cli app to return state information from TFE",
+		Version: Version + "-" + gitCommit,
+		Commands: []*cli.Command{
+			{
+				Name:  "list-workspaces",
+				Usage: "List all workspaces for an Organization",
+				Action: func(c *cli.Context) error {
+					err := cmdTFEListWorkspaces(c)
+					return err
+				},
+			},
+			{
+				Name:  "latest-statefile-size",
+				Usage: "Get latest statefile size for all workspaces",
+				Action: func(c *cli.Context) error {
+					err := cmdTFELatestStatefileSizes(c)
+					return err
+				},
+			},
+			{
+				Name:  "all-statefiles-size",
+				Usage: "Get total size of all statefiles of all workspaces",
+				Action: func(c *cli.Context) error {
+					err := cmdTFEAllStatefileSizes(c)
+					return err
+				},
+			},
+			{
+				Name:  "validate",
+				Usage: "Validate your current credentials",
+				Action: func(c *cli.Context) error {
+					err := cmdTFEValidate(c)
+					return err
+				},
+			},
+		},
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "format",
+				Value: "pretty_json",
+				Usage: "The format you want them returned in, valid values are: table, json, pretty_json",
+			},
+			&cli.BoolFlag{
+				Name:  "silent",
+				Value: true,
+				Usage: "Do not output anything other than errors or returned data",
+			},
+			&cli.BoolFlag{
+				Name:  "debug",
+				Value: false,
+				Usage: "Show debug information, with full http logs",
+			},
+		},
+	}
+
+	cli.AppHelpTemplate = `NAME:
+	{{.Name}} - {{.Usage}}
+USAGE:
+	{{.HelpName}} {{if .VisibleFlags}}[global options]{{end}}{{if .Commands}} command [command options]{{end}} {{if .ArgsUsage}}{{.ArgsUsage}}{{else}}[arguments...]{{end}}
+	{{if len .Authors}}
+AUTHOR:
+	{{range .Authors}}{{ . }}{{end}}
+	{{end}}{{if .Commands}}
+COMMANDS:
+{{range .Commands}}{{if not .HideHelp}}   {{join .Names ", "}}{{ "\t"}}{{.Usage}}{{ "\n" }}{{end}}{{end}}
+TFE CONFIGURATION:
+	TFE configuration is set by the common Vault environmental variables: 
+		TFE_HOSTNAME: The address for the TFE server (Required)
+		TFE_TOKEN: The token for the TFE server (Required) 
+		TFE_ORG_NAME: The org you want to use
+
+GLOBAL OPTIONS:
+	{{range .VisibleFlags}}{{.}}
+	{{end}}{{end}}{{if .Copyright }}
+COPYRIGHT:
+	{{.Copyright}}
+	{{end}}{{if .Version}}
+VERSION:
+	{{.Version}}
+	{{end}}
+ `
+
+	err := app.Run(os.Args)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func getENV(value string) (string, error) {
+	envValue := os.Getenv(value)
+	if len(envValue) == 0 {
+		return "", fmt.Errorf("No ENV value for %s", value)
+	}
+	return envValue, nil
+}
+
+func printResults(format string, workspaceList *tfe.WorkspaceList) error {
+
+	//nolint:dupl // JSON case gets flagged here
+	switch format {
+	case "json":
+		certAsMarshall, err := json.Marshal(workspaceList)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(certAsMarshall))
+	case "pretty_json":
+		s, err := prettyjson.Marshal(workspaceList)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(s))
+	case "table":
+		tablePrint(workspaceList)
+	default:
+		return fmt.Errorf("invalid format given. valid formats: json, pretty_json, table, got: %s", format)
+	}
+
+	return nil
+
+}
+
+func tablePrint(tfeWorkspaceList *tfe.WorkspaceList) {
+
+	workspaceArray := tfeWorkspaceList.Items
+
+	data := [][]string{}
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(true)
+	table.SetHeader([]string{"Name", "VCS Repo"})
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+
+	for _, workspace := range workspaceArray {
+
+		vcsRepo := ""
+
+		if workspace.VCSRepo == nil {
+			vcsRepo = "<NONE>"
+		} else {
+			vcsRepo = workspace.VCSRepo.Identifier
+		}
+
+		data = append(data, []string{workspace.Name, vcsRepo})
+	}
+
+	for _, v := range data {
+		table.Append(v)
+	}
+
+	table.Render()
+}
+
+func cmdTFEValidate(ctx *cli.Context) (err error) {
+
+	tfeAddr, err := getENV("TFE_HOSTNAME")
+
+	if err != nil {
+		return err
+	}
+
+	tfeToken, err := getENV("TFE_TOKEN")
+
+	if err != nil {
+		return err
+	}
+
+	url, err := url.ParseRequestURI(fmt.Sprintf("https://%s", tfeAddr))
+	if err != nil {
+		return err
+	}
+
+	tfeConfig := &tfe.Config{
+		Address:  url.String(),
+		BasePath: "",
+		Token:    tfeToken,
+	}
+
+	client, err := tfe.NewClient(tfeConfig)
+	if err != nil {
+		return err
+	}
+
+	// Create a context
+	backgroundCtx := context.Background()
+
+	user, err := client.Users.ReadCurrent(backgroundCtx)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println("API Token valid - User is:", user.Username)
+	}
+
+	return nil
+
+}
+
+func cmdTFEListWorkspaces(ctx *cli.Context) (err error) {
+
+	tfeAddr, err := getENV("TFE_HOSTNAME")
+
+	if err != nil {
+		return err
+	}
+
+	tfeToken, err := getENV("TFE_TOKEN")
+
+	if err != nil {
+		return err
+	}
+
+	url, err := url.ParseRequestURI(fmt.Sprintf("https://%s", tfeAddr))
+	if err != nil {
+		return err
+	}
+
+	tfeOrg, err := getENV("TFE_ORG_NAME")
+
+	if err != nil {
+		return err
+	}
+
+	tfeConfig := &tfe.Config{
+		Address: url.String(),
+		Token:   tfeToken,
+	}
+
+	client, err := tfe.NewClient(tfeConfig)
+	if err != nil {
+		return err
+	}
+
+	// Create a context
+	backgroundCtx := context.Background()
+
+	workspaces, err := client.Workspaces.List(backgroundCtx, tfeOrg, tfe.WorkspaceListOptions{})
+
+	if err != nil {
+		return err
+	}
+
+	err = printResults(ctx.String("format"), workspaces)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+func cmdTFELatestStatefileSizes(ctx *cli.Context) (err error) {
+
+	tfeAddr, err := getENV("TFE_HOSTNAME")
+
+	if err != nil {
+		return err
+	}
+
+	tfeToken, err := getENV("TFE_TOKEN")
+
+	if err != nil {
+		return err
+	}
+
+	url, err := url.ParseRequestURI(fmt.Sprintf("https://%s", tfeAddr))
+	if err != nil {
+		return err
+	}
+
+	tfeOrg, err := getENV("TFE_ORG_NAME")
+
+	if err != nil {
+		return err
+	}
+
+	tfeConfig := &tfe.Config{
+		Address: url.String(),
+		Token:   tfeToken,
+	}
+
+	client, err := tfe.NewClient(tfeConfig)
+	if err != nil {
+		return err
+	}
+
+	// Create a context
+	backgroundCtx := context.Background()
+
+	workspaces, err := client.Workspaces.List(backgroundCtx, tfeOrg, tfe.WorkspaceListOptions{})
+
+	if err != nil {
+		return err
+	}
+
+	listWorkspaces := workspaces.Items
+
+	for _, workspace := range listWorkspaces {
+
+		currentStateFile, err := client.StateVersions.Current(backgroundCtx, workspace.ID)
+
+		if err == nil {
+
+			filename := fmt.Sprintf("%s-latest-state-file.json", workspace.Name)
+
+			err := downloadFile(filename, currentStateFile.DownloadURL)
+
+			if err != nil {
+				return err
+			}
+
+			fi, err := os.Stat(filename)
+
+			if err != nil {
+				return err
+			}
+
+			fileSize := bytefmt.ByteSize(uint64(fi.Size()))
+
+			fmt.Printf("File size for %s was %v\n", workspace.Name, fileSize)
+		}
+
+	}
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+func cmdTFEAllStatefileSizes(ctx *cli.Context) (err error) {
+
+	tfeAddr, err := getENV("TFE_HOSTNAME")
+
+	if err != nil {
+		return err
+	}
+
+	tfeToken, err := getENV("TFE_TOKEN")
+
+	if err != nil {
+		return err
+	}
+
+	url, err := url.ParseRequestURI(fmt.Sprintf("https://%s", tfeAddr))
+	if err != nil {
+		return err
+	}
+
+	tfeOrg, err := getENV("TFE_ORG_NAME")
+
+	if err != nil {
+		return err
+	}
+
+	tfeConfig := &tfe.Config{
+		Address: url.String(),
+		Token:   tfeToken,
+	}
+
+	client, err := tfe.NewClient(tfeConfig)
+	if err != nil {
+		return err
+	}
+
+	// Create a context
+	backgroundCtx := context.Background()
+
+	workspaces, err := client.Workspaces.List(backgroundCtx, tfeOrg, tfe.WorkspaceListOptions{})
+
+	if err != nil {
+		return err
+	}
+
+	listWorkspaces := workspaces.Items
+
+	for _, workspace := range listWorkspaces {
+
+		listOfStateFiles, err := client.StateVersions.List(backgroundCtx, tfe.StateVersionListOptions{
+			Organization: &tfeOrg,
+			Workspace:    &workspace.Name,
+		})
+
+		if err == nil {
+
+			totalSize := 0
+
+			for index, statefile := range listOfStateFiles.Items {
+
+				filename := fmt.Sprintf("%s-latest-state-file-%v.json", workspace.Name, index)
+
+				err := downloadFile(filename, statefile.DownloadURL)
+
+				if err != nil {
+					return err
+				}
+
+				fi, err := os.Stat(filename)
+
+				if err != nil {
+					return err
+				}
+
+				totalSize += int(fi.Size())
+
+			}
+
+			fileSize := bytefmt.ByteSize(uint64(totalSize))
+
+			fmt.Printf("Total of all state file sizes for %s was %v (Statefile Count: %v)\n", workspace.Name, fileSize, len(listOfStateFiles.Items))
+		}
+
+	}
+
+	return nil
+
+}
+
+func downloadFile(filepath string, url string) error {
+
+	// Get the data
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Create the file
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// Write the body to file
+	_, err = io.Copy(out, resp.Body)
+	return err
+}
