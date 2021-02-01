@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,7 +16,9 @@ import (
 	"github.com/hashicorp/go-tfe"
 	"github.com/hokaccha/go-prettyjson"
 	"github.com/kataras/tablewriter"
+	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
+	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 )
 
 // Version is what is returned by the `-v` flag
@@ -54,6 +56,18 @@ func main() {
 				Action: func(c *cli.Context) error {
 					err := cmdTFEAllStatefileSizes(c)
 					return err
+				},
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "cleanup",
+						Value: true,
+						Usage: "Cleanup downloaded statefiles after completion",
+					},
+					&cli.BoolFlag{
+						Name:  "totmpdir",
+						Value: true,
+						Usage: "Download statefiles to a temporary location instead of cwd",
+					},
 				},
 			},
 			{
@@ -115,6 +129,20 @@ VERSION:
 
 	if err != nil {
 		log.Fatal(err)
+	}
+}
+
+func setupLogging(debug bool) {
+	log.SetOutput(os.Stderr)
+	textFormatter := new(prefixed.TextFormatter)
+	textFormatter.FullTimestamp = true
+	textFormatter.TimestampFormat = "2006-Jan-02 15:04:05"
+	log.SetFormatter(textFormatter)
+	log.SetLevel(log.FatalLevel)
+
+	if debug {
+		log.SetLevel(log.InfoLevel)
+		log.Info("--debug setting detected - Info level logs enabled")
 	}
 }
 
@@ -364,6 +392,20 @@ func cmdTFELatestStatefileSizes(ctx *cli.Context) (err error) {
 
 func cmdTFEAllStatefileSizes(ctx *cli.Context) (err error) {
 
+	setupLogging(ctx.Bool("debug"))
+
+	doCleanup := ctx.Bool("cleanup")
+
+	if doCleanup {
+		log.Info("--cleanup enabled, so statefiles will be deleted after completion")
+	}
+
+	doTmpDir := ctx.Bool("totmpdir")
+
+	if doCleanup {
+		log.Info(fmt.Sprintf("--totmpdir enabled, so statefiles will be downloaded to default tmpdir (%s)", os.TempDir()))
+	}
+
 	tfeAddr, err := getENV("TFE_HOSTNAME")
 
 	if err != nil {
@@ -423,11 +465,24 @@ func cmdTFEAllStatefileSizes(ctx *cli.Context) (err error) {
 
 				filename := fmt.Sprintf("%s-latest-state-file-%v.json", workspace.Name, index)
 
-				err := downloadFile(filename, statefile.DownloadURL)
+				if doTmpDir {
+
+					tmpDir, err := ioutil.TempDir(os.TempDir(), "tfe-state-info")
+
+					if err != nil {
+						return err
+					}
+
+					filename = fmt.Sprintf("%s/%s", tmpDir, filename)
+				}
+
+				err = downloadFile(filename, statefile.DownloadURL)
 
 				if err != nil {
 					return err
 				}
+
+				log.Info(fmt.Sprintf("Downloaded to " + filename))
 
 				fi, err := os.Stat(filename)
 
@@ -436,6 +491,14 @@ func cmdTFEAllStatefileSizes(ctx *cli.Context) (err error) {
 				}
 
 				totalSize += int(fi.Size())
+
+				if doCleanup {
+					err = os.Remove(filename)
+
+					if err != nil {
+						return err
+					}
+				}
 
 			}
 

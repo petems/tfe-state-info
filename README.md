@@ -46,9 +46,9 @@ VERSION:
 
 #### all-statefiles-size
 
-Lists the total of all statefiles for a workspace
+Lists the total size of all statefiles for a workspace
 
-**Note** - Currently this is done by mass-downloading all of the listed statefiles for the workspace in question and then totalling the size of all downloads. As of 0.1.0, it does not clean up the files after download.
+Currently this is done by mass-downloading all of the listed statefiles for the workspace in question and then totalling the size of all downloads. As of 0.2.0, it cleans up files after download, this behaviour is configurable with the `--cleanup` flag, which defaults to true.
 
 ```
  $ export TFE_HOSTNAME=app.terraform.io
