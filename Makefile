@@ -3,6 +3,7 @@ NAME := tfe-state-info
 PKG := github.com/petems/$(NAME)
 GIT_COMMIT := $(shell git log -1 --pretty=format:"%h" .)
 VERSION := $(shell grep "const Version " main.go | sed -E 's/.*"(.+)"$$/\1/')
+GIT_PORCELAIN_STATUS=$(shell git status --porcelain)
 
 .PHONY: all
 all: clean build fmt lint test
@@ -13,13 +14,23 @@ build:
 	@echo "GOPATH=${GOPATH}"
 	go build -ldflags "-X main.gitCommit=${GIT_COMMIT}" -o bin/${NAME}
 
+.PHONY: check-all-commited
+check-all-commited:
+	@go mod vendor 
+	if [ -n "$(GIT_PORCELAIN_STATUS)" ]; \
+	then \
+	    echo 'You have uncommited changes, likely `go mod vendor`'; \
+	    git status; \
+	    exit 1; \
+	fi
+
 .PHONY: fmt
 fmt: ## Verifies all files have men `gofmt`ed
 	@echo "+ $@"
 	@gofmt -s -l . | grep -v '.pb.go:' | grep -v vendor | tee /dev/stderr
 
 .PHONY: lint
-lint: ## Verifies `golint` passes
+lint: check-all-commited ## Verifies `golint` passes
 	@echo "+ $@"
 	@golangci-lint run ./...
 
