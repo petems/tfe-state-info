@@ -2,7 +2,17 @@
 
 [![Build Status](https://travis-ci.com/petems/tfe-state-info.svg?branch=master)](https://travis-ci.com/petems/tfe-state-info)
 
-A simple cli app to return certificates from a Vault PKI mount
+A simple cli app to return state file information from Terraform Enterprise
+
+## Caveat Emptor
+
+**This is used at your own risk!**
+
+I built it to help users of Terraform Enterprise and Terraform Cloud to check the size usage of workspaces and orgs. 
+
+However, to do this, currently the only method is to actually download statefiles to compare sizes: Content-Length checking doesn't work as the state is dynamic, and there's no native API setting to get sizes.
+
+If you have 1TB worth of Statefiles in one org, `tfe-state-info all-statefiles-size` against that org will download 1TB's worth of statefiles. Make sure you have the bandwidth and space to actually do this!
 
 ## Install 
 
