@@ -11,10 +11,6 @@ A simple cli app to return certificates from a Vault PKI mount
 curl -sSfL https://raw.githubusercontent.com/petems/tfe-state-info/master/install.sh | sh -s v0.1.0
 ```
 
-## Example
-
-![Example](./svg_demo.svg)
-
 ### Help
 
 ```
@@ -46,4 +42,32 @@ GLOBAL OPTIONS:
 VERSION:
   0.1.0-ba9d68a
 
+```
+
+#### all-statefiles-size
+
+Lists the total of all statefiles for a workspace
+
+**Note** - Currently this is done by mass-downloading all of the listed statefiles for the workspace in question and then totalling the size of all downloads. As of 0.1.0, it does not clean up the files after download.
+
+```
+ $ export TFE_HOSTNAME=app.terraform.io
+ $ export TFE_TOKEN=<REDACTED>
+ $ tfe-state-info all-statefiles-size
+ $ export TFE_ORG_NAME=psouter-hashicorp
+ $ tfe-state-info all-statefiles-size
+Total of all state file sizes for arbitrary-terraform-code-with-vcs was 0B (Statefile Count: 0)
+Total of all state file sizes for arbitary-terraform-code was 1.4K (Statefile Count: 1)
+Total of all state file sizes for folder-triggers-terraform was 0B (Statefile Count: 0)
+Total of all state file sizes for aws-single-instance was 15.3K (Statefile Count: 3)
+Total of all state file sizes for testing-output-changing was 1.9K (Statefile Count: 2)
+Total of all state file sizes for terraform_tfvars_import was 0B (Statefile Count: 0)
+Total of all state file sizes for testing-tfvar-export was 0B (Statefile Count: 0)
+Total of all state file sizes for cfgmgmtcamp-2020-cost-restrict was 6K (Statefile Count: 1)
+Total of all state file sizes for infracoding-with-terraform-testcon-2019 was 3K (Statefile Count: 2)
+Total of all state file sizes for aws-single-instance-with-provisioner was 0B (Statefile Count: 0)
+Total of all state file sizes for petersouterxyz-s3-website was 9.8K (Statefile Count: 1)
+Total of all state file sizes for petersouterxyz-circle-ci-credentials was 7.2K (Statefile Count: 6)
+Total of all state file sizes for tfe-saas-remote-data-example was 4.1K (Statefile Count: 2)
+Total of all state file sizes for aws-single-micro was 91.9K (Statefile Count: 14)
 ```
