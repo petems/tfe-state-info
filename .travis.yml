@@ -23,6 +23,7 @@ before_script:
 
 script:
   - make lint
+  - make check-go-mod-vendor-update
   - go test -v -race ./...  # Run all the tests with the race detector enabled
   - bundle exec cucumber
 

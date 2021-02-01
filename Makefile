@@ -6,7 +6,7 @@ VERSION := $(shell grep "const Version " main.go | sed -E 's/.*"(.+)"$$/\1/')
 GIT_PORCELAIN_STATUS=$(shell git status --porcelain)
 
 .PHONY: all
-all: clean build fmt lint test
+all: clean build fmt lint check-go-mod-vendor-update test
 
 .PHONY: clean build
 build:
@@ -14,10 +14,10 @@ build:
 	@echo "GOPATH=${GOPATH}"
 	go build -ldflags "-X main.gitCommit=${GIT_COMMIT}" -o bin/${NAME}
 
-.PHONY: check-all-commited
-check-all-commited:
+.PHONY: check-go-mod-vendor-update
+check-go-mod-vendor-update:
 	@go mod vendor 
-	if [ -n "$(GIT_PORCELAIN_STATUS)" ]; \
+	@if [ -n "$(GIT_PORCELAIN_STATUS)" ]; \
 	then \
 	    echo 'You have uncommited changes, likely `go mod vendor`'; \
 	    git status; \
@@ -30,7 +30,7 @@ fmt: ## Verifies all files have men `gofmt`ed
 	@gofmt -s -l . | grep -v '.pb.go:' | grep -v vendor | tee /dev/stderr
 
 .PHONY: lint
-lint: check-all-commited ## Verifies `golint` passes
+lint: ## Verifies `golangci-lint run` passes
 	@echo "+ $@"
 	@golangci-lint run ./...
 
