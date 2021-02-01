@@ -1,0 +1,80 @@
+# code.cloudfoundry.org/bytefmt v0.0.0-20200131002437-cf55d5288a48
+## explicit
+code.cloudfoundry.org/bytefmt
+# github.com/cpuguy83/go-md2man/v2 v2.0.0
+## explicit
+github.com/cpuguy83/go-md2man/v2/md2man
+# github.com/fatih/color v1.10.0
+## explicit
+github.com/fatih/color
+# github.com/google/go-querystring v1.0.0
+github.com/google/go-querystring/query
+# github.com/hashicorp/go-cleanhttp v0.5.1
+github.com/hashicorp/go-cleanhttp
+# github.com/hashicorp/go-hclog v0.15.0
+## explicit
+# github.com/hashicorp/go-retryablehttp v0.6.8
+## explicit
+github.com/hashicorp/go-retryablehttp
+# github.com/hashicorp/go-slug v0.6.0
+## explicit
+github.com/hashicorp/go-slug
+# github.com/hashicorp/go-tfe v0.12.0
+## explicit
+github.com/hashicorp/go-tfe
+# github.com/hashicorp/go-uuid v1.0.2
+## explicit
+# github.com/hokaccha/go-prettyjson v0.0.0-20210113012101-fb4e108d2519
+## explicit
+github.com/hokaccha/go-prettyjson
+# github.com/kataras/tablewriter v0.0.0-20180708051242-e063d29b7c23
+## explicit
+github.com/kataras/tablewriter
+# github.com/kr/text v0.2.0
+## explicit
+# github.com/mattn/go-colorable v0.1.8
+github.com/mattn/go-colorable
+# github.com/mattn/go-isatty v0.0.12
+github.com/mattn/go-isatty
+# github.com/mattn/go-runewidth v0.0.10
+## explicit
+github.com/mattn/go-runewidth
+# github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
+## explicit
+github.com/mgutz/ansi
+# github.com/onsi/ginkgo v1.14.2
+## explicit
+# github.com/onsi/gomega v1.10.4
+## explicit
+# github.com/rivo/uniseg v0.1.0
+github.com/rivo/uniseg
+# github.com/russross/blackfriday/v2 v2.1.0
+## explicit
+github.com/russross/blackfriday/v2
+# github.com/sirupsen/logrus v1.7.0
+## explicit
+github.com/sirupsen/logrus
+# github.com/stretchr/testify v1.7.0
+## explicit
+# github.com/svanharmelen/jsonapi v0.0.0-20180618144545-0c0828c3f16d
+github.com/svanharmelen/jsonapi
+# github.com/urfave/cli/v2 v2.3.0
+## explicit
+github.com/urfave/cli/v2
+# github.com/x-cray/logrus-prefixed-formatter v0.5.2
+## explicit
+github.com/x-cray/logrus-prefixed-formatter
+# golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+golang.org/x/crypto/ssh/terminal
+# golang.org/x/sys v0.0.0-20210124154548-22da62e12c0c
+## explicit
+golang.org/x/sys/internal/unsafeheader
+golang.org/x/sys/unix
+golang.org/x/sys/windows
+# golang.org/x/time v0.0.0-20201208040808-7e3f01d25324
+## explicit
+golang.org/x/time/rate
+# gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
+## explicit
+# gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
+## explicit
