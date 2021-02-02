@@ -442,28 +442,61 @@ func cmdTFEAllStatefileSizes(ctx *cli.Context) (err error) {
 	// Create a context
 	backgroundCtx := context.Background()
 
-	workspaces, err := client.Workspaces.List(backgroundCtx, tfeOrg, tfe.WorkspaceListOptions{})
+	workspacesPagedList, err := client.Workspaces.List(backgroundCtx, tfeOrg, tfe.WorkspaceListOptions{
+		ListOptions: tfe.ListOptions{PageSize: 20},
+	})
 
 	if err != nil {
 		return err
 	}
 
-	listWorkspaces := workspaces.Items
+	workspaceNamesList := []string{}
 
-	for _, workspace := range listWorkspaces {
+	for i := 1; i <= workspacesPagedList.Pagination.TotalPages; i++ {
+		pageNumber := i
+		workspaceNamesFromPage, err := getWorkspacesListPage(backgroundCtx, pageNumber, client, tfeOrg)
+		if err != nil {
+			return err
+		}
+		workspaceNamesList = append(workspaceNamesList, workspaceNamesFromPage...)
+	}
 
-		listOfStateFiles, err := client.StateVersions.List(backgroundCtx, tfe.StateVersionListOptions{
+	if err != nil {
+		return err
+	}
+
+	for _, workspace := range workspaceNamesList {
+
+		stateFilePagedList, err := client.StateVersions.List(backgroundCtx, tfe.StateVersionListOptions{
+			ListOptions: tfe.ListOptions{
+				PageSize: 20,
+			},
 			Organization: &tfeOrg,
-			Workspace:    &workspace.Name,
+			Workspace:    &workspace,
 		})
+
+		statefileURLList := []string{}
+
+		for i := 1; i <= stateFilePagedList.Pagination.TotalPages; i++ {
+			pageNumber := i
+			statefileURLsFromPage, err := getStatefileListPage(backgroundCtx, pageNumber, client, tfeOrg, workspace)
+			if err != nil {
+				return err
+			}
+			statefileURLList = append(statefileURLList, statefileURLsFromPage...)
+		}
+
+		if err != nil {
+			return err
+		}
 
 		if err == nil {
 
 			totalSize := 0
 
-			for index, statefile := range listOfStateFiles.Items {
+			for index, statefileURL := range statefileURLList {
 
-				filename := fmt.Sprintf("%s-latest-state-file-%v.json", workspace.Name, index)
+				filename := fmt.Sprintf("%s-latest-state-file-%v.json", workspace, index)
 
 				if doTmpDir {
 
@@ -476,7 +509,7 @@ func cmdTFEAllStatefileSizes(ctx *cli.Context) (err error) {
 					filename = fmt.Sprintf("%s/%s", tmpDir, filename)
 				}
 
-				err = downloadFile(filename, statefile.DownloadURL)
+				err = downloadFile(filename, statefileURL)
 
 				if err != nil {
 					return err
@@ -504,7 +537,7 @@ func cmdTFEAllStatefileSizes(ctx *cli.Context) (err error) {
 
 			fileSize := bytefmt.ByteSize(uint64(totalSize))
 
-			fmt.Printf("Total of all state file sizes for %s was %v (Statefile Count: %v)\n", workspace.Name, fileSize, len(listOfStateFiles.Items))
+			fmt.Printf("Total of all state file sizes for %s was %v (Statefile Count: %v)\n", workspace, fileSize, len(statefileURLList))
 		}
 
 	}
@@ -532,4 +565,50 @@ func downloadFile(filepath string, url string) error {
 	// Write the body to file
 	_, err = io.Copy(out, resp.Body)
 	return err
+}
+
+func getWorkspacesListPage(backgroundCtx context.Context, pageNumber int, client *tfe.Client, orgName string) ([]string, error) {
+
+	workspaceNamesSlice := []string{}
+
+	opts := tfe.WorkspaceListOptions{
+		ListOptions: tfe.ListOptions{
+			PageSize:   20,
+			PageNumber: pageNumber,
+		},
+	}
+	list, err := client.Workspaces.List(backgroundCtx, orgName, opts)
+	if err != nil {
+		return nil, err
+	}
+	for itr, ws := range list.Items {
+		log.Info(fmt.Sprintf("Workspace %s - Workspace Iterate - %v", ws.Name, itr))
+		workspaceNamesSlice = append(workspaceNamesSlice, ws.Name)
+	}
+
+	return workspaceNamesSlice, nil
+}
+
+func getStatefileListPage(backgroundCtx context.Context, pageNumber int, client *tfe.Client, orgName string, workspaceName string) ([]string, error) {
+
+	stateFileURLs := []string{}
+
+	opts := tfe.StateVersionListOptions{
+		ListOptions: tfe.ListOptions{
+			PageSize:   20,
+			PageNumber: pageNumber,
+		},
+		Organization: &orgName,
+		Workspace:    &workspaceName,
+	}
+	list, err := client.StateVersions.List(backgroundCtx, opts)
+	if err != nil {
+		return nil, err
+	}
+	for itr, state := range list.Items {
+		log.Info(fmt.Sprintf("Workspace %s - Statefile Iterate - %v", workspaceName, itr))
+		stateFileURLs = append(stateFileURLs, state.DownloadURL)
+	}
+
+	return stateFileURLs, nil
 }
