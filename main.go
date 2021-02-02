@@ -573,7 +573,7 @@ func getWorkspacesListPage(backgroundCtx context.Context, pageNumber int, client
 
 	opts := tfe.WorkspaceListOptions{
 		ListOptions: tfe.ListOptions{
-			PageSize:   20,
+			PageSize:   100,
 			PageNumber: pageNumber,
 		},
 	}
@@ -595,7 +595,7 @@ func getStatefileListPage(backgroundCtx context.Context, pageNumber int, client 
 
 	opts := tfe.StateVersionListOptions{
 		ListOptions: tfe.ListOptions{
-			PageSize:   20,
+			PageSize:   100,
 			PageNumber: pageNumber,
 		},
 		Organization: &orgName,
