@@ -27,10 +27,10 @@ script:
   - go test -v -race ./...  # Run all the tests with the race detector enabled
   - bundle exec cucumber
 
-deploy:
-- provider: script
-  skip_cleanup: true
-  script: curl -sL https://git.io/goreleaser | bash
-  on:
-    tags: true
-    condition: $TRAVIS_OS_NAME = linux
+# deploy:
+# - provider: script
+#   skip_cleanup: true
+#   script: curl -sL https://git.io/goreleaser | bash
+#   on:
+#     tags: true
+#     condition: $TRAVIS_OS_NAME = linux
